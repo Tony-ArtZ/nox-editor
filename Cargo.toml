@@ -1,0 +1,10 @@
+[package]
+name = "nox-editor"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+termios = "0.3.3"
+libc = "0.2.151"
+syntect = "5.1"
+lazy_static = "1.4"

@@ -55,7 +55,14 @@ fn main() {
         name = "Untitled".to_string();
         path = "/".to_string();
     } else {
-        data = open_file(&args[1]).expect("Failed to open file");
+        let file_result = open_file(&args[1]);
+        match file_result {
+            Ok(content) => data = content,
+            Err(e) => {
+            eprintln!("Error opening file: {}", e);
+            data = vec![String::new()];
+            }
+        }
         name = args[1].split('/').last().unwrap_or("unknown").to_string();
         path = args[1].to_string();
     }

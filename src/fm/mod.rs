@@ -1,7 +1,9 @@
 use std::{
-    fs,
+    fs::{self, DirEntry, File, ReadDir},
     io::{self, BufRead},
 };
+
+use nox_editor::FileManager;
 
 pub fn open_file(path: &str) -> io::Result<Vec<String>> {
     let file = fs::File::open(path)?;

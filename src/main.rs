@@ -79,6 +79,94 @@ fn main() {
         // Update toasts before handling input (remove expired toasts)
         file_manager.update_toasts();
 
+        if file_manager.file_browser.browser_open {
+            if stdin.read(&mut buffer).is_ok() {
+                match buffer[0] {
+                    // Handle Arrow Keys and Escape
+                    b'\x1b' => {
+                        let mut arrow_buffer = [0; 2];
+                        if stdin.read(&mut arrow_buffer).is_ok() {
+                            match arrow_buffer {
+                                [b'[', b'A'] => file_manager.file_browser.move_pointer(-1), // Up arrow - decrease pointer
+                                [b'[', b'B'] => file_manager.file_browser.move_pointer(1), // Down arrow - increase pointer
+                                _ => {
+                                    // This might be just an escape key
+                                    file_manager.file_browser.close_browser();
+                                    file_manager.add_toast(
+                                        "File browser closed",
+                                        2000,
+                                        nox_editor::ToastType::Info,
+                                    );
+                                }
+                            }
+                        } else {
+                            // Single escape key press
+                            file_manager.file_browser.close_browser();
+                            file_manager.add_toast(
+                                "File browser closed",
+                                2000,
+                                nox_editor::ToastType::Info,
+                            );
+                        }
+                    }
+                    // Enter key - open selected file/directory
+                    0x0d | 0x0a => {
+                        if let Some(entry) = file_manager.file_browser.get_selected_entry() {
+                            let is_dir = entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
+
+                            if is_dir {
+                                // Navigate into directory
+                                let path = entry.path().to_string_lossy().to_string();
+                                match file_manager.file_browser.open_browser(&path) {
+                                    Ok(_) => {}
+                                    Err(e) => {
+                                        file_manager.add_toast(
+                                            &e,
+                                            5000,
+                                            nox_editor::ToastType::Error,
+                                        );
+                                    }
+                                }
+                            } else {
+                                // Open file - replace current buffer
+                                let path = entry.path().to_string_lossy().to_string();
+                                match fm::open_file(&path) {
+                                    Ok(new_data) => {
+                                        file_manager.buffer.data = if new_data.is_empty() {
+                                            vec![String::new()]
+                                        } else {
+                                            new_data
+                                        };
+                                        file_manager.file_info.path = path.clone();
+                                        file_manager.file_info.name =
+                                            path.split('/').last().unwrap_or("unknown").to_string();
+                                        file_manager.pointer.x = 0;
+                                        file_manager.pointer.y = 0;
+                                        file_manager.file_browser.close_browser();
+                                        file_manager.add_toast(
+                                            &format!("Opened: {}", file_manager.file_info.name),
+                                            3000,
+                                            nox_editor::ToastType::Success,
+                                        );
+                                    }
+                                    Err(e) => {
+                                        file_manager.add_toast(
+                                            &format!("Error opening file: {}", e),
+                                            5000,
+                                            nox_editor::ToastType::Error,
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+                renderer::render(&file_manager);
+            }
+            continue; // Don't process other inputs while browser is open
+        }
+
         if file_manager.input_handler.taking_input {
             if stdin.read(&mut buffer).is_ok() {
                 // Handle input mode keys
@@ -132,6 +220,39 @@ fn main() {
                             _ => {}
                         }
                     }
+                }
+                //CTRL+O to open file
+                0x0f => {
+                    // Open file dialog - start from current working directory or file's directory
+                    let start_path = if file_manager.file_info.path == "/"
+                        || file_manager.file_info.path.is_empty()
+                    {
+                        std::env::current_dir()
+                            .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                            .to_string_lossy()
+                            .to_string()
+                    } else {
+                        // Use the directory of the current file
+                        std::path::Path::new(&file_manager.file_info.path)
+                            .parent()
+                            .unwrap_or_else(|| std::path::Path::new("."))
+                            .to_string_lossy()
+                            .to_string()
+                    };
+
+                    match file_manager.file_browser.open_browser(&start_path) {
+                        Ok(_) => {
+                            file_manager.add_toast(
+                                "File browser opened - Use ↑/↓ to navigate, Enter to select, ESC to close",
+                                4000,
+                                nox_editor::ToastType::Info,
+                            );
+                        }
+                        Err(e) => {
+                            file_manager.add_toast(&e, 5000, nox_editor::ToastType::Error);
+                        }
+                    }
+                    renderer::render(&file_manager);
                 }
                 0x13 => {
                     // Ctrl+S to save

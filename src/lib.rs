@@ -1,3 +1,4 @@
+use std::fs::{self, DirEntry};
 use std::io::Write;
 use std::time::{Duration, Instant};
 
@@ -167,6 +168,7 @@ pub struct FileManager {
     pub file_info: FileInfo,
     pub toasts: Vec<Toast>,
     pub input_handler: InputHandler,
+    pub file_browser: FileBrowser,
 }
 
 impl FileManager {
@@ -178,6 +180,7 @@ impl FileManager {
             file_info,
             toasts: Vec::new(),
             input_handler: InputHandler::new(),
+            file_browser: FileBrowser::new(),
         }
     }
 
@@ -292,5 +295,99 @@ impl FileManager {
             }
             self.pointer.x = 0;
         }
+    }
+}
+
+pub struct FileBrowser {
+    pub browser_open: bool,
+    pub pointer: usize,
+    pub paths: Option<Vec<DirEntry>>,
+}
+
+impl FileBrowser {
+    pub fn new() -> Self {
+        FileBrowser {
+            browser_open: false,
+            pointer: 0,
+            paths: None,
+        }
+    }
+
+    pub fn open_browser(&mut self, path: &str) -> Result<(), String> {
+        let entries = fs::read_dir(path);
+        let mut files: Vec<DirEntry> = vec![];
+
+        match entries {
+            Err(e) => {
+                return Err(format!("Error opening file browser: {}", e));
+            }
+            Ok(files_iterator) => {
+                for i in files_iterator {
+                    match i {
+                        Ok(entry) => files.push(entry),
+                        Err(e) => return Err(format!("Error reading directory entry: {}", e)),
+                    }
+                }
+            }
+        }
+
+        // Sort files: directories first, then files alphabetically
+        files.sort_by(|a, b| {
+            let a_is_dir = a.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
+            let b_is_dir = b.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
+
+            match (a_is_dir, b_is_dir) {
+                (true, false) => std::cmp::Ordering::Less,
+                (false, true) => std::cmp::Ordering::Greater,
+                _ => a.file_name().cmp(&b.file_name()),
+            }
+        });
+
+        self.paths = Some(files);
+        self.browser_open = true;
+        self.pointer = 0;
+        Ok(())
+    }
+
+    pub fn move_pointer(&mut self, y: i8) {
+        if let Some(paths) = self.paths.as_ref() {
+            if paths.is_empty() {
+                return;
+            }
+
+            if y < 0 {
+                // Up arrow - decrease pointer
+                self.pointer = self.pointer.saturating_sub(1);
+            } else if y > 0 {
+                // Down arrow - increase pointer
+                if self.pointer < paths.len().saturating_sub(1) {
+                    self.pointer += 1;
+                }
+            }
+        }
+    }
+
+    pub fn close_browser(&mut self) {
+        self.browser_open = false;
+        self.pointer = 0;
+        self.paths = None;
+    }
+
+    pub fn get_selected_path(&self) -> Option<String> {
+        if let Some(paths) = &self.paths {
+            if self.pointer < paths.len() {
+                return Some(paths[self.pointer].path().to_string_lossy().to_string());
+            }
+        }
+        None
+    }
+
+    pub fn get_selected_entry(&self) -> Option<&DirEntry> {
+        if let Some(paths) = &self.paths {
+            if self.pointer < paths.len() {
+                return Some(&paths[self.pointer]);
+            }
+        }
+        None
     }
 }

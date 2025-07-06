@@ -26,6 +26,13 @@ fn center_text(text: &str, width: usize) -> String {
 
 pub fn render(file_manager: &FileManager) {
     clear_screen();
+
+    //TODO: Improve this function
+    if (file_manager.file_browser.browser_open) {
+        render_browser(file_manager);
+        return;
+    }
+
     let (terminal_rows, terminal_cols) = get_terminal_size().unwrap_or((24, 80));
 
     // Calculate used lines BEFORE rendering content
@@ -341,4 +348,130 @@ fn render_footer() {
     }
 
     println!("{}", RESET);
+}
+
+pub fn render_browser(fm: &FileManager) {
+    clear_screen();
+
+    let (terminal_rows, terminal_cols) = get_terminal_size().unwrap_or((24, 80));
+    let term_cols_usize = terminal_cols as usize;
+
+    // Title bar for file browser
+    let mut title_line = String::new();
+    title_line.push_str(BG_BLUE);
+    title_line.push_str(BRIGHT_WHITE);
+    title_line.push_str(BOLD);
+
+    for _ in 0..term_cols_usize {
+        title_line.push(' ');
+    }
+
+    println!(
+        "{}\r{}{}{}{}",
+        title_line,
+        BG_BLUE,
+        BRIGHT_WHITE,
+        BOLD,
+        center_text("📁 File Browser", term_cols_usize)
+    );
+
+    println!("{}{}", RESET, "═".repeat(term_cols_usize));
+
+    match &fm.file_browser.paths {
+        Some(files) => {
+            if files.is_empty() {
+                println!("{}     [Empty directory]{}", DIM, RESET);
+                println!();
+                println!("{}{}ESC{} to go back", BRIGHT_BLACK, BOLD, RESET);
+                return;
+            }
+
+            // Calculate available space for file list
+            let used_lines = 6; // title (2) + separator (1) + help (3)
+            let max_files = (terminal_rows as usize).saturating_sub(used_lines);
+
+            // Calculate scroll position
+            let current_pos = fm.file_browser.pointer;
+            let start_index = if current_pos >= max_files {
+                current_pos.saturating_sub(max_files / 2)
+            } else {
+                0
+            };
+            let end_index = std::cmp::min(start_index + max_files, files.len());
+
+            // Show scroll indicator if needed
+            if files.len() > max_files {
+                let percentage = (current_pos * 100) / std::cmp::max(1, files.len() - 1);
+                println!(
+                    "{}Showing {}-{} of {} files [{}%]{}",
+                    DIM,
+                    start_index + 1,
+                    end_index,
+                    files.len(),
+                    percentage,
+                    RESET
+                );
+            } else {
+                println!("{}Showing {} files{}", DIM, files.len(), RESET);
+            }
+
+            for i in start_index..end_index {
+                let entry = &files[i];
+                let is_selected = i == fm.file_browser.pointer;
+                let is_dir = entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
+                let file_name = entry.file_name().to_string_lossy().to_string();
+
+                let (icon, name_color) = if is_dir {
+                    ("📁", BRIGHT_CYAN)
+                } else {
+                    let ext = file_name.split('.').last().unwrap_or("");
+                    match ext {
+                        "rs" => ("🦀", BRIGHT_YELLOW),
+                        "js" | "ts" => ("📜", BRIGHT_YELLOW),
+                        "py" => ("🐍", BRIGHT_GREEN),
+                        "md" => ("📝", BRIGHT_WHITE),
+                        "txt" => ("📄", BRIGHT_WHITE),
+                        "json" => ("⚙️", BRIGHT_MAGENTA),
+                        "toml" | "yaml" | "yml" => ("⚙️", BRIGHT_BLUE),
+                        _ => ("📄", BRIGHT_WHITE),
+                    }
+                };
+
+                if is_selected {
+                    print!("{}{}{}", BG_CYAN, BLACK, BOLD);
+                    let padding = term_cols_usize.saturating_sub(file_name.len() + 4);
+                    println!("► {} {}{}{}", icon, file_name, " ".repeat(padding), RESET);
+                } else {
+                    println!("  {}{} {}{}", icon, name_color, file_name, RESET);
+                }
+            }
+
+            let shown_files = end_index - start_index;
+            let remaining_lines = max_files.saturating_sub(shown_files);
+            for _ in 0..remaining_lines {
+                println!();
+            }
+        }
+        None => {
+            println!("{}     [No files found]{}", DIM, RESET);
+            println!();
+        }
+    }
+
+    println!("{}{}", RESET, "─".repeat(term_cols_usize));
+    println!(
+        "{}{}↑/↓{} Navigate │ {}{}ENTER{} Open/Select │ {}{}ESC{} Close Browser{}",
+        BRIGHT_BLACK,
+        BOLD,
+        RESET,
+        BOLD,
+        BRIGHT_WHITE,
+        RESET,
+        BOLD,
+        BRIGHT_WHITE,
+        RESET,
+        BRIGHT_BLACK
+    );
+
+    stdout().flush().expect("Failed to flush stdout");
 }

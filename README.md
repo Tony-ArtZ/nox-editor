@@ -1,5 +1,7 @@
 # Nox Editor
 
+![Nox Editor](./assets/banner.png)
+
 A terminal-based text editor written in Rust, featuring syntax highlighting, toast notifications, and a modern user interface.
 
 ## Features
@@ -18,18 +20,44 @@ A terminal-based text editor written in Rust, featuring syntax highlighting, toa
 
 ## Installation
 
-### Prerequisites
+### Quick Installation (Recommended)
+
+Use our automated installation script for the easiest setup:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/Tony-ArtZ/nox-editor/main/install.sh | bash
+```
+
+Or if you prefer to download and inspect the script first:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/Tony-ArtZ/nox-editor/main/install.sh -o install.sh
+chmod +x install.sh
+./install.sh
+```
+
+The installation script will:
+
+- ✅ Check and install Rust automatically if needed
+- ✅ Clone the repository and build the project
+- ✅ Install the binary to your chosen location
+- ✅ Provide setup instructions for your PATH
+
+### Manual Installation
+
+#### Prerequisites
 
 - Rust (latest stable version)
 - Unix-like operating system (Linux, macOS)
+- Git
 
-### Building from Source
+#### Building from Source
 
 1. Clone the repository:
 
 ```bash
-git clone <repository-url>
-cd rust-term
+git clone https://github.com/Tony-ArtZ/nox-editor.git
+cd nox-editor
 ```
 
 2. Build the project:
@@ -38,10 +66,20 @@ cd rust-term
 cargo build --release
 ```
 
-3. Run the editor:
+3. Install the binary (optional):
 
 ```bash
-cargo run [filename]
+# Install to ~/.local/bin (make sure it's in your PATH)
+cp target/release/nox-editor ~/.local/bin/
+
+# Or install system-wide (requires sudo)
+sudo cp target/release/nox-editor /usr/local/bin/
+```
+
+4. Run the editor:
+
+```bash
+nox-editor [filename]
 ```
 
 ## Usage
@@ -67,6 +105,7 @@ nox-editor /path/to/your/file.txt
 | `Enter`              | New line                                |
 | `Tab`                | Insert tab character                    |
 | `Backspace`/`Delete` | Delete character                        |
+| `Ctrl+O`             | Open File Browser                       |
 
 ### Interface Components
 
@@ -75,6 +114,7 @@ nox-editor /path/to/your/file.txt
 - **Status Bar**: Shows cursor position and file information
 - **Toast Notifications**: Temporary messages for user feedback
 - **Input Prompts**: Interactive dialogs for file operations
+- **File Browser**: Browse and open files
 
 ## Dependencies
 

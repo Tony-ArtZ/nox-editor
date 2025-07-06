@@ -5,6 +5,14 @@
 
 set -e  # Exit on any error
 
+# Debug mode - set to 1 to enable verbose output
+DEBUG=${DEBUG:-0}
+
+# Enable debug mode if DEBUG=1
+if [ "$DEBUG" = "1" ]; then
+    set -x
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -65,20 +73,31 @@ check_requirements() {
         print_step "CentOS/RHEL: sudo yum install git"
         print_step "macOS: brew install git"
         exit 1
+    else
+        print_success "Git is installed ($(git --version 2>/dev/null || echo 'version check failed'))"
     fi
     
     # Check for Rust
     if ! command_exists rustc; then
         print_warning "Rust is not installed. Installing Rust..."
         install_rust
+        
+        # Verify Rust installation
+        if ! command_exists rustc; then
+            print_error "Rust installation failed. Please install Rust manually and try again."
+            print_step "Visit: https://rustup.rs/"
+            exit 1
+        fi
     else
-        print_success "Rust is already installed ($(rustc --version))"
+        print_success "Rust is already installed ($(rustc --version 2>/dev/null || echo 'version check failed'))"
     fi
     
     # Check for Cargo
     if ! command_exists cargo; then
         print_error "Cargo is not installed. Please install Rust with Cargo and try again."
         exit 1
+    else
+        print_success "Cargo is installed ($(cargo --version 2>/dev/null || echo 'version check failed'))"
     fi
     
     print_success "All requirements met!"
@@ -98,8 +117,14 @@ install_rust() {
     fi
     
     # Source the cargo environment
-    source "$HOME/.cargo/env"
-    print_success "Rust installed successfully!"
+    if [ -f "$HOME/.cargo/env" ]; then
+        source "$HOME/.cargo/env"
+        print_success "Rust installed successfully!"
+    else
+        print_warning "Rust installed but environment file not found. You may need to restart your terminal."
+        # Try to add cargo to PATH manually
+        export PATH="$HOME/.cargo/bin:$PATH"
+    fi
 }
 
 # Get installation directory
@@ -107,37 +132,45 @@ get_install_dir() {
     # Default installation directory
     DEFAULT_INSTALL_DIR="$HOME/.local/bin"
     
-    echo -e "${YELLOW}Choose installation directory:${NC}"
-    echo -e "  ${WHITE}1)${NC} $DEFAULT_INSTALL_DIR (recommended)"
-    echo -e "  ${WHITE}2)${NC} /usr/local/bin (system-wide, requires sudo)"
-    echo -e "  ${WHITE}3)${NC} Custom directory"
-    echo
-    
-    while true; do
-        read -p "Enter your choice (1-3): " choice
-        case $choice in
-            1)
-                INSTALL_DIR="$DEFAULT_INSTALL_DIR"
-                break
-                ;;
-            2)
-                INSTALL_DIR="/usr/local/bin"
-                NEED_SUDO=true
-                break
-                ;;
-            3)
-                read -p "Enter custom directory path: " INSTALL_DIR
-                if [[ -n "$INSTALL_DIR" ]]; then
+    # Check if we're running interactively
+    if [ -t 0 ]; then
+        # Interactive mode
+        echo -e "${YELLOW}Choose installation directory:${NC}"
+        echo -e "  ${WHITE}1)${NC} $DEFAULT_INSTALL_DIR (recommended)"
+        echo -e "  ${WHITE}2)${NC} /usr/local/bin (system-wide, requires sudo)"
+        echo -e "  ${WHITE}3)${NC} Custom directory"
+        echo
+        
+        while true; do
+            read -p "Enter your choice (1-3): " choice
+            case $choice in
+                1)
+                    INSTALL_DIR="$DEFAULT_INSTALL_DIR"
                     break
-                else
-                    print_warning "Please enter a valid directory path."
-                fi
-                ;;
-            *)
-                print_warning "Please enter 1, 2, or 3."
-                ;;
-        esac
-    done
+                    ;;
+                2)
+                    INSTALL_DIR="/usr/local/bin"
+                    NEED_SUDO=true
+                    break
+                    ;;
+                3)
+                    read -p "Enter custom directory path: " INSTALL_DIR
+                    if [[ -n "$INSTALL_DIR" ]]; then
+                        break
+                    else
+                        print_warning "Please enter a valid directory path."
+                    fi
+                    ;;
+                *)
+                    print_warning "Please enter 1, 2, or 3."
+                    ;;
+            esac
+        done
+    else
+        # Non-interactive mode - use default
+        print_step "Using default installation directory (non-interactive mode)"
+        INSTALL_DIR="$DEFAULT_INSTALL_DIR"
+    fi
     
     # Expand tilde to home directory
     INSTALL_DIR="${INSTALL_DIR/#\~/$HOME}"
@@ -228,12 +261,46 @@ check_path() {
 
 # Main installation function
 main() {
+    # Handle command line arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --interactive|-i)
+                FORCE_INTERACTIVE=true
+                shift
+                ;;
+            --help|-h)
+                echo "Nox Editor Installation Script"
+                echo "Usage: $0 [options]"
+                echo "Options:"
+                echo "  -i, --interactive    Force interactive mode"
+                echo "  -h, --help          Show this help message"
+                echo ""
+                echo "Environment variables:"
+                echo "  DEBUG=1             Enable debug output"
+                exit 0
+                ;;
+            *)
+                print_warning "Unknown option: $1"
+                shift
+                ;;
+        esac
+    done
+    
     clear
     print_banner
     
     echo -e "${WHITE}This script will install Nox Editor on your system.${NC}"
-    echo -e "${WHITE}Press Enter to continue or Ctrl+C to cancel...${NC}"
-    read -r
+    
+    # Check if we're running in a pipe (from curl) or interactively
+    if [ -t 0 ] || [ "$FORCE_INTERACTIVE" = "true" ]; then
+        # Interactive mode - wait for user input
+        echo -e "${WHITE}Press Enter to continue or Ctrl+C to cancel...${NC}"
+        read -r
+    else
+        # Non-interactive mode (piped from curl) - auto-continue after brief pause
+        echo -e "${WHITE}Starting installation in 3 seconds... (Ctrl+C to cancel)${NC}"
+        sleep 3
+    fi
     
     check_requirements
     get_install_dir
@@ -252,6 +319,9 @@ main() {
     echo
     print_step "For help and documentation, visit:"
     echo -e "    ${BLUE}https://github.com/Tony-ArtZ/nox-editor${NC}"
+    echo
+    print_step "If you encounter any issues, try running with debug mode:"
+    echo -e "    ${CYAN}DEBUG=1 curl -sSL https://raw.githubusercontent.com/Tony-ArtZ/nox-editor/main/install.sh | bash${NC}"
     echo
     print_step "Enjoy coding with Nox Editor! 🚀"
 }

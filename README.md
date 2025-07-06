@@ -36,6 +36,20 @@ chmod +x install.sh
 ./install.sh
 ```
 
+**Troubleshooting Installation:**
+
+If you encounter issues, try these options:
+
+```bash
+# For debug output
+DEBUG=1 curl -sSL https://raw.githubusercontent.com/Tony-ArtZ/nox-editor/main/install.sh | bash
+
+# For interactive mode (choose installation directory)
+curl -sSL https://raw.githubusercontent.com/Tony-ArtZ/nox-editor/main/install.sh -o install.sh
+chmod +x install.sh
+./install.sh --interactive
+```
+
 The installation script will:
 
 - ✅ Check and install Rust automatically if needed
